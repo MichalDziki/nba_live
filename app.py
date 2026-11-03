@@ -55,8 +55,15 @@ def _refresh_lock():
 def run_refresh() -> str:
     logs = []
     for script in ("get_data.py", "build_features.py"):
-        r = subprocess.run([sys.executable, script], capture_output=True, text=True)
-        logs.append(f"$ {script}\n" + (r.stdout + r.stderr)[-1500:])
+        # wypisujemy postep na biezaco (widac go w logach serwera, np. "Manage app" w chmurze)
+        p = subprocess.Popen([sys.executable, "-u", script], stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, text=True)
+        out = []
+        for line in p.stdout:
+            print(f"[{script}] {line}", end="", flush=True)
+            out.append(line)
+        p.wait()
+        logs.append(f"$ {script}\n" + "".join(out)[-1500:])
     st.cache_resource.clear()
     st.cache_data.clear()
     return "\n\n".join(logs)
@@ -82,7 +89,7 @@ if CLOUD:
     if older_than(FEATURES_CSV, REFRESH_HOURS):
         with _refresh_lock():
             if older_than(FEATURES_CSV, REFRESH_HOURS):
-                with st.spinner("Aktualizuję dane NBA – przy pierwszym uruchomieniu to trwa 2-5 minut..."):
+                with st.spinner("Aktualizuję dane NBA – przy pierwszym uruchomieniu to trwa do ok. 15 minut..."):
                     os.makedirs("data", exist_ok=True)
                     st.session_state["refresh_log"] = run_refresh()
     key = secret("ODDS_API_KEY", "")
